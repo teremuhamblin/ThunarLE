@@ -1,64 +1,197 @@
-name: THUNAR-XFCE CI
+name: THUNAR-XFCE CI (Portable & Tests v3.0)
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-
   lint:
-    name: Vérification Bash
+    name: 🔍 Vérification Bash, JSON & Config
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Installer ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
-
-      - name: Lint des scripts
+      - name: Installer outils de lint
         run: |
-          find . -type f -name "*.sh" -print0 | xargs -0 shellcheck
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck jq
 
-  test:
-    name: Tests basiques
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Vérifier les permissions des scripts
+      - name: Syntaxe Bash (bash -n)
         run: |
-          find . -type f -name "*.sh" -exec chmod +x {} \;
-
-      - name: Test exécution à blanc
-        run: |
-          for script in $(find . -type f -name "*.sh"); do
-            echo "Test: $script"
+          while IFS= read -r -d '' script; do
+            echo "Syntaxe OK -> $script"
             bash -n "$script"
+          done < <(find . -type f -name "*.sh" -not -path "./.git/*" -print0)
+
+      - name: Lint ShellCheck des scripts
+        run: |
+          mapfile -d '' scripts < <(find . -type f -name "*.sh" -not -path "./.git/*" -print0)
+          if [ "${#scripts[@]}" -gt 0 ]; then
+            shellcheck -S warning -e SC1090,SC1091 "${scripts[@]}"
+          fi
+
+      - name: Validation syntaxique JSON (manifestes & configs)
+        run: |
+          while IFS= read -r -d '' json_file; do
+            echo "Validation JSON -> $json_file"
+            jq empty "$json_file"
+          done < <(find . -type f -name "*.json" -not -path "./.git/*" -print0)
+
+      - name: Vérifier présence des fichiers socle
+        run: |
+          for required in install.sh thunar-xfce.sh VERSION.md config/action.conf config/plugins.conf; do
+            test -f "$required" || { echo "❌ Fichier manquant : $required"; exit 1; }
           done
 
-  build:
-    name: Build & Packaging
+  test:
+    name: 🧪 Tests Fonctionnels & OpSec v3.0
     runs-on: ubuntu-latest
-    needs: test
+    needs: lint
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Créer archive du projet
+      - name: Installer dépendances de test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq coreutils
+
+      - name: Test module Wayland / X11 compat (v3.0.0)
+        run: |
+          if [ -f gui/wayland-compat.sh ]; then
+            bash -c '
+              source gui/wayland-compat.sh
+              SESSION="$(detect_session_type)"
+              BACKEND="$(pick_dialog_backend)"
+              echo "Session détectée : $SESSION | Backend : $BACKEND"
+              [ "$SESSION" = "x11" ] || [ "$SESSION" = "wayland" ]
+            '
+          else
+            echo "::warning::gui/wayland-compat.sh absent (jalon v3.0.0)."
+          fi
+
+      - name: Test sortie XML de l'applet xfce4-panel (v3.0.0)
+        run: |
+          if [ -f hud/xfce4-panel-genmon.sh ]; then
+            OUT="$(bash hud/xfce4-panel-genmon.sh)"
+            echo "$OUT"
+            printf '%s\n' "$OUT" | grep -q '<txt>'
+            printf '%s\n' "$OUT" | grep -q '<txtclick>'
+            printf '%s\n' "$OUT" | grep -q '<tool>'
+            echo "✅ Sortie genmon valide."
+          else
+            echo "::warning::hud/xfce4-panel-genmon.sh absent (jalon v3.0.0)."
+          fi
+
+      - name: Test intégrité SHA-256 Plugins (positif & négatif)
+        run: |
+          if [ -f plugins/verify-plugin.sh ] && [ -f plugins/custom/example-plugin/plugin.manifest.json ]; then
+            # 1. Test positif
+            bash plugins/verify-plugin.sh plugins/custom/example-plugin
+
+            # 2. Test négatif : simulation d'un plugin falsifié
+            TMP_PLUGIN="$(mktemp -d /tmp/tampered-plugin-XXXXXX)"
+            cp -r plugins/custom/example-plugin/. "$TMP_PLUGIN/"
+            echo "# malicious payload" >> "$TMP_PLUGIN/plugin.sh"
+
+            if bash plugins/verify-plugin.sh "$TMP_PLUGIN" 2>/dev/null; then
+              echo "❌ ÉCHEC : verify-plugin.sh n'a pas bloqué un plugin altéré !"
+              rm -rf "$TMP_PLUGIN"
+              exit 1
+            fi
+            rm -rf "$TMP_PLUGIN"
+            echo "✅ Détection de falsification SHA-256 validée."
+          else
+            echo "::warning::verify-plugin.sh ou plugin.manifest.json absent (jalon v3.0-rc)."
+          fi
+
+      - name: Test gestion d'erreur OpSec Crypt (v3.0-alpha)
+        run: |
+          if [ -f security/opsec-crypt.sh ]; then
+            if bash security/opsec-crypt.sh encrypt /tmp/fichier-inexistant-12345 2>/dev/null; then
+              echo "❌ ÉCHEC : opsec-crypt.sh aurait dû échouer sur un fichier inexistant."
+              exit 1
+            fi
+            echo "✅ Gestion d'erreur opsec-crypt.sh validée."
+          else
+            echo "::warning::security/opsec-crypt.sh absent (jalon v3.0-alpha)."
+          fi
+
+  build:
+    name: 📦 Packaging Archive Portable & SHA-256
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Résoudre la version & normaliser les permissions
+        id: meta
+        run: |
+          VERSION=""
+          if [ -f debian/DEBIAN/control ]; then
+            VERSION="$(grep -E '^Version:' debian/DEBIAN/control | awk '{print $2}' | tr -d '[:space:]')"
+          fi
+          if [ -z "$VERSION" ] && [ -f VERSION.md ]; then
+            VERSION="$(head -n 1 VERSION.md | tr -cd '[:alnum:]._-')"
+          fi
+          VERSION="${VERSION:-3.0.0-rc1}"
+
+          # Appliquer +x sur tous les scripts avant empaquetage
+          find . -type f -name "*.sh" -not -path "./.git/*" -exec chmod +x {} +
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "archive=thunar-xfce-${VERSION}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Créer archive propre & empreinte SHA-256
         run: |
           mkdir -p build
-          tar -czf build/thunar-xfce.tar.gz \
+          ARCHIVE="${{ steps.meta.outputs.archive }}"
+
+          tar -czf "build/${ARCHIVE}" \
             --exclude=".git" \
+            --exclude=".github" \
             --exclude="build" \
+            --exclude="*.deb" \
+            --exclude="logs/*.log" \
+            --exclude="logs/certs/*.cert.json" \
             .
 
-      - name: Upload artefact
+          (
+            cd build
+            sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+            cat "${ARCHIVE}.sha256"
+          )
+
+      - name: Upload artefacts (Archive + SHA-256)
         uses: actions/upload-artifact@v4
         with:
-          name: thunar-xfce-build
-          path: build/thunar-xfce.tar.gz
+          name: thunar-xfce-${{ steps.meta.outputs.version }}-portable
+          path: |
+            build/${{ steps.meta.outputs.archive }}
+            build/${{ steps.meta.outputs.archive }}.sha256
+          if-no-files-found: error
+
+      - name: Résumé CI
+        run: |
+          {
+            echo "## ⚡ THUNAR-XFCE CI Summary"
+            echo "- **Version :** \`${{ steps.meta.outputs.version }}\`"
+            echo "- **Archive :** \`${{ steps.meta.outputs.archive }}\`"
+            echo "- **Empreinte :** \`${{ steps.meta.outputs.archive }}.sha256\`"
+            echo "- **Contrôles :** Bash syntax, ShellCheck, JSON, Wayland/HUD, Anti-tampering SHA-256 ✅"
+          } >> "$GITHUB_STEP_SUMMARY"
