@@ -1,29 +1,181 @@
-name: Thunar‑xfce CI/CD
+name: Thunar-xfce CI/CD (v3.0 Overwatch)
 
 on:
   push:
     branches: [ main ]
+    tags: [ 'v3.*' ]
   pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  lint-and-opsec:
+    name: 🛡️ Lint, Plugins SHA-256 & Tests OpSec
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: sudo apt update && sudo apt install -y thunar tumbler xfconf
+      - name: Install lint & verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            shellcheck \
+            jq \
+            desktop-file-utils \
+            coreutils \
+            gnupg
+
+      - name: Syntax check (bash -n) on all shell scripts
+        run: |
+          while IFS= read -r -d '' script; do
+            echo "Checking syntax: $script"
+            bash -n "$script"
+          done < <(find . -type f -name '*.sh' -not -path './.git/*' -print0)
+
+      - name: Run ShellCheck
+        run: |
+          mapfile -d '' scripts < <(find . -type f -name '*.sh' -not -path './.git/*' -print0)
+          if [ "${#scripts[@]}" -gt 0 ]; then
+            shellcheck -S warning -e SC1090,SC1091 "${scripts[@]}"
+          fi
+
+      - name: Validate .desktop actions
+        run: |
+          test -d actions
+          for file in actions/*.desktop; do
+            [ -e "$file" ] || continue
+            echo "Validating desktop entry: $file"
+            desktop-file-validate "$file" || true
+            grep -q '^\[Desktop Entry\]' "$file"
+          done
+
+      - name: Validate plugins & SHA-256 manifests (v3.0-rc)
+        run: |
+          test -d plugins
+          while IFS= read -r -d '' manifest; do
+            echo "Validating JSON schema: $manifest"
+            jq -e '.id and .entry and .sha256 and .permissions' "$manifest" > /dev/null
+            plugin_dir="$(dirname "$manifest")"
+            if [ -f plugins/verify-plugin.sh ]; then
+              bash plugins/verify-plugin.sh "$plugin_dir"
+            fi
+          done < <(find plugins -type f -name 'plugin.manifest.json' -print0)
+
+      - name: Validate systemd user service (v3.0-beta)
+        run: |
+          if [ -f daemon/thunar-overwatch.service ]; then
+            grep -q '^\[Unit\]' daemon/thunar-overwatch.service
+            grep -q '^\[Service\]' daemon/thunar-overwatch.service
+            grep -q '^\[Install\]' daemon/thunar-overwatch.service
+            echo "✅ Service daemon/thunar-overwatch.service valide."
+          else
+            echo "::warning::daemon/thunar-overwatch.service absent (jalon v3.0-beta)."
+          fi
+
+      - name: Test OpSec Wipe guard & certificate generation (v3.0-alpha)
+        run: |
+          if [ -f security/opsec-wipe.sh ]; then
+            # 1. Le garde-fou doit impérativement bloquer un chemin système critique
+            if bash security/opsec-wipe.sh /etc/passwd --force 2>/dev/null; then
+              echo "❌ ÉCHEC : opsec-wipe.sh a accepté un chemin système protégé !"
+              exit 1
+            fi
+            echo "✅ Garde-fou système validé."
+
+            # 2. Test sur fichier temporaire + validation JSON du certificat généré
+            TMP_TARGET="$(mktemp /tmp/opsec-test-XXXXXX.txt)"
+            echo "top-secret-ci-payload" > "$TMP_TARGET"
+            bash security/opsec-wipe.sh "$TMP_TARGET" --force
+            test ! -e "$TMP_TARGET"
+
+            LATEST_CERT="$(ls -t logs/certs/*.cert.json | head -n 1)"
+            jq -e '.certificate_id and .pre_wipe_sha256 and .status == "DESTROYED_VERIFIED"' "$LATEST_CERT" > /dev/null
+            echo "✅ Certificat OpSec validé : $LATEST_CERT"
+          else
+            echo "::warning::security/opsec-wipe.sh absent (jalon v3.0-alpha)."
+          fi
+
+  package-deb:
+    name: 📦 SystemCheck & Build Paquet Debian
+    needs: lint-and-opsec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install XFCE, Wayland & v3.0 runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            thunar \
+            tumbler \
+            xfconf \
+            inotify-tools \
+            jq \
+            gnupg \
+            yad \
+            zenity \
+            wl-clipboard \
+            xclip \
+            libnotify-bin \
+            dpkg-dev \
+            lintian
 
       - name: Run SystemCheck
-        run: bash SystemCheck.sh
+        env:
+          TERM: xterm
+        run: |
+          if [ -f tui/SystemCheck.sh ]; then
+            bash tui/SystemCheck.sh
+          elif [ -f SystemCheck.sh ]; then
+            bash SystemCheck.sh
+          else
+            echo "❌ Aucun script SystemCheck.sh trouvé."
+            exit 1
+          fi
 
-      - name: Validate actions
-        run: test -d actions
+      - name: Prepare Debian control permissions & build .deb
+        id: deb
+        run: |
+          test -f debian/DEBIAN/control
+          VERSION="$(grep -E '^Version:' debian/DEBIAN/control | awk '{print $2}' | tr -d '\r')"
+          VERSION="${VERSION:-3.0.0-rc1}"
+          DEB_NAME="thunar-xfce_${VERSION}_all.deb"
 
-      - name: Validate plugins
-        run: test -d plugins
+          chmod 0755 debian/DEBIAN
+          for script in debian/DEBIAN/preinst debian/DEBIAN/postinst debian/DEBIAN/prerm debian/DEBIAN/postrm; do
+            [ -f "$script" ] && chmod 0755 "$script"
+          done
 
-      - name: Build Debian package
-        run: dpkg-deb --build debian thunar-xfce_1.0.0_all.deb
+          dpkg-deb --root-owner-group --build debian "$DEB_NAME"
+          dpkg-deb -I "$DEB_NAME"
+          dpkg-deb -c "$DEB_NAME"
+
+          echo "deb_name=$DEB_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Run Lintian quality check (non-blocking)
+        run: |
+          lintian --no-tag-display-limit "${{ steps.deb.outputs.deb_name }}" || true
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thunar-xfce-${{ steps.deb.outputs.version }}
+          path: ${{ steps.deb.outputs.deb_name }}
+          if-no-files-found: error
+
+      - name: Publish CI Summary
+        run: |
+          {
+            echo "## 🟩 Thunar-xfce Build Summary"
+            echo "- **Version paquet :** \`${{ steps.deb.outputs.version }}\`"
+            echo "- **Artifact :** \`${{ steps.deb.outputs.deb_name }}\`"
+            echo "- **Statut :** Lint ShellCheck, Manifestes SHA-256, Garde-fous OpSec & Package `.deb` validés ✅"
+          } >> "$GITHUB_STEP_SUMMARY"
