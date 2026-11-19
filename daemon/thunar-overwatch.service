@@ -1,0 +1,12 @@
+[Unit]
+Description=Thunar-xfce Overwatch File Watcher Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/opt/thunar-xfce/daemon/overwatch-daemon.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
