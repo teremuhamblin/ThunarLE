@@ -1,48 +1,52 @@
-###### 🟩 README.md >> markdown 
 # 🟩 Thunar-xfce
-- — *Edition Tactique v1.0.0*
+- — *Edition Tactique v3.0.0 "Overwatch"*
 
 ### 🎯 Mission
-- 》》》 Optimiser Thunar avec des actions avancées,
-   - *une TUI militaire*.
-   - *des plugins modulaires*.
-   - *une installation automatisée*.
+- 》》》 Transformer Thunar en poste de commandement Linux :
+   - *une TUI militaire & une GUI tactique complète*.
+   - *des actions forensiques, OCR et cryptographiques*.
+   - *un moteur d'automatisation temps réel*.
+   - *des plugins signés et une installation automatisée*.
 
 ### 🛠️ Fonctionnalités
 ```text
-- ✔ Actions Thunar professionnelles  
-- ✔ Plugins activables/désactivables  
-- ✔ TUI Ghost Recon  
-- ✔ SystemCheck Mode  
-- ✔ Plugin Manager  
-- ✔ Paquet Debian  
-- ✔ Installation automatique  
+- ✔ Actions Thunar professionnelles (OCR, Metadata, Hash Pro)
+- ✔ Plugins activables/désactivables & signés (Manifeste OpSec)
+- ✔ TUI Ghost Recon + Interface GUI complète
+- ✔ Watchers automatisés (inotify / systemd --user)
+- ✔ Module OpSec (Chiffrement age/GPG, Wipe certifié, Quarantaine)
+- ✔ Applet HUD xfce4-panel & Compatibilité Wayland
+- ✔ SystemCheck Mode & Audit Logs
+- ✔ Paquet Debian (.deb) & Export de profils flotte
 ```
 
 ### 📦 Structure
-```text
-- actions/ — Actions Thunar
-- debian/ — Package DEBIAN
-- plugins/ — Modules additionnels  
-- tui/ — Interface militaire  
-- config/ — Configuration  
-- logs/ — Journalisation  
-- debian/ — Packaging .deb  
-```
+
+- actions/   — Actions Thunar (uca.xml & scripts associés)
+- daemon/    — Watchers temps réel & moteur de pipelines (v3.0)
+- plugins/   — Modules additionnels & manifestes de permissions
+- tui/       — Interface militaire Ghost Recon
+- gui/       — Interface graphique tactique & éditeur de règles
+- security/  — Modules OpSec, chiffrement, quarantaine & audit
+- config/    — Profils tactiques & configuration globale
+- logs/      — Journalisation & certificats d'audit horodatés
+- debian/    — Packaging .deb & déploiement multi-postes
 
 ### ⚙ Installation
-```bash
-sudo bash install.sh
-```
+### sudo bash install.sh
 
 ### 🛡 Sécurité
-- ✔ Permissions contrôlées  
-- ✔ Logs dédiés  
-- ✔ Vérification des dépendances  
+✔ Permissions contrôlées & manifestes de plugins
+✔ Vérification d'intégrité (SHA-256 / GPG)
+✔ Logs dédiés & certificats d'effacement sécurisé
+✔ Vérification des dépendances (SystemCheck Mode)
 
 ### 🚀 Roadmap
-###### v1.1 — Thème graphique militaire
-###### v1.2 — Actions avancées (OCR, metadata, hashing pro)
-###### v2.0 — Interface GUI complète  
+### 💡 Par quoi commencer techniquement pour la v3.0 ?
+Si tu veux découper le développement en étapes rapides :
+1. **`v3.0-alpha`** : ajouter `security/` (actions Thunar pour chiffrement `age`/`gpg` + `shred` avec log dans `logs/`).
+2. **`v3.0-beta`** : créer le service léger `daemon/` en Bash/Python avec `inotifywait` géré par `systemctl --user`.
+3. **`v3.0-rc`** : ajouter `plugin.manifest.json` + contrôle SHA-256 dans ton *Plugin Manager* existant.
+4. **`v3.0.0`** : connecter le tout dans la GUI v2.0 + paquet `.deb` mis à jour.
 
----
+Si tu veux, partage la liste de tes fichiers actuels (`tree` ou `find . -maxdepth 3`) et je peux te générer les premiers scripts de la v3.0 (`daemon/`, module OpSec ou manifeste de plugins) adaptés à ton architecture existante.
