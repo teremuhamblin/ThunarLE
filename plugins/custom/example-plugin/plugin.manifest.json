@@ -1,0 +1,14 @@
+{
+  "schema": "3.0",
+  "id": "example-plugin",
+  "name": "Example Tactical Plugin",
+  "version": "3.0.0",
+  "entry": "plugin.sh",
+  "sha256": "REMPLACER_PAR_SIGN_PLUGIN_SH",
+  "permissions": {
+    "fs_read": true,
+    "fs_write": false,
+    "network": false,
+    "pkexec": false
+  }
+}
