@@ -297,29 +297,42 @@ sequenceDiagram
 
 <a id="structure"></a>
 
-## 📦 𝗦𝗧𝗥𝗨𝗖𝗧𝗨𝗥𝗘 𝗠𝗢𝗗𝗨𝗟𝗔𝗜𝗥𝗘 `v4.0.0`
-
+## 📦 𝗦𝗧𝗥𝗨𝗖𝗧𝗨𝗥𝗘 𝗠𝗢𝗗𝗨𝗟𝗔𝗜𝗥𝗘 `v4.5.0`
 ```text
-Thunar-xfce/
-├── ⚡ actions/          ──► Actions Thunar (.desktop + actions/scripts/)
-├── 🧠 ai/               ──► Moteur de triage sémantique offline & règles YARA (v4.0)
-├── ⚙️ config/           ──► Profils globaux, thèmes & overwatch.conf
-├── 📡 daemon/           ──► Service systemd --user & watchers inotify
-├── 📦 debian/           ──► Packaging .deb & déploiement flotte automatisé
-├── 📚 docs/             ──► Manuels, architecture, changelog & roadmap
-├── 🖥️ gui/              ──► Tableau de bord Cyber-Glass, Command Palette & compat Wayland
-├── 🟩 hud/              ──► Applet temps réel xfce4-panel (genmon)
-├── 📜 logs/             ──► Journaux d'activité & logs/certs/ (certificats wipe JSON)
-├── 🧩 plugins/          ──► Plugins modulaires, verify-plugin.sh & sign-plugin.sh
-├── 📦 sandbox/          ──► Runner Zero-Trust Bubblewrap (bwrap) (v4.0)
-├── 🔐 security/         ──► OpSec Crypt (age/GPG/YubiKey), Wipe certifié & Quarantaine
-├── 🌐 sync/             ──► Réplication chiffrée Mesh entre postes Debian/XFCE (v4.0)
-├── 🕶️ tui/              ──► Interface console "Ghost Recon" & SystemCheck
-├── 🚀 install.sh        ──► Déploiement tout-en-un & vérification pré-vol
-└── 🎛️ thunar-xfce.sh    ──► Point d'entrée unifié CLI / TUI / GUI / Daemon
+ThunarLE/
+├── 🤖 .github/                        ──► Workflows CI/CD (build, main, release), templates & SECURITY.md
+│
+├── ⚙️ src/                            ──► Code applicatif modulaire (regroupé par compatibilité)
+│   ├── 🧭 lib/                        ──► Utilitaires partagés (path.sh — résolution racine & env)
+│   ├── 🧩 thunar/                     ──► Couche Thunar & Extensions
+│   │   ├── ⚡ actions/                ──► Actions Thunar (.desktop + actions/scripts/)
+│   │   ├── 🔌 plugins/                ──► Loader, verify-plugin.sh (SHA-256), sign-plugin.sh & custom/
+│   │   └── 🧬 extension/              ──► Extension native thunarx (v5.0 preview)
+│   ├── 🖥️ ui/                         ──► Couche Interfaces (X11 / Wayland / XFCE)
+│   │   ├── 🕶️ tui/                    ──► Console "Ghost Recon", PluginManager.sh & SystemCheck.sh
+│   │   ├── 🪟 gui/                    ──► Dashboard Cyber-Glass, wayland-compat.sh & Command Palette
+│   │   └── 🟩 hud/                    ──► Applet temps réel xfce4-panel (genmon)
+│   ├── 🛡️ opsec/                      ──► Couche Sécurité & Isolation Zero-Trust
+│   │   ├── 🔐 security/               ──► OpSec Crypt (age/GPG), Wipe certifié & Quarantaine
+│   │   └── 📦 sandbox/                ──► Runner isolé Bubblewrap (bwrap-runner.sh)
+│   └── 📡 engine/                     ──► Couche Services & Intelligence Autonome
+│       ├── 👁️ daemon/                 ──► Service systemd --user & watchers inotify
+│       ├── 🧠 ai/                     ──► Moteur de triage sémantique offline & règles YARA
+│       └── 🌐 sync/                   ──► Réplication chiffrée Mesh entre postes Debian/XFCE
+│
+├── 🎛️ config/                         ──► Configurations (action, plugins, thunar, overwatch, theme.confs)
+├── 📜 var/                            ──► Données runtime isolées du code source
+│   └── 🗂️ logs/                       ──► Journaux (thunar-xfce.log) & certificats wipe JSON (certs/)
+├── 📦 packaging/                      ──► Distribution & déploiement flotte
+│   └── 🐧 debian/                     ──► Packaging .deb (DEBIAN/{control,postinst,postrm} & opt/)
+├── 📚 docs/                           ──► Manuels, architecture, CHANGELOG, ROADMAP & releases/
+├── 🧪 tests/                          ──► Tests automatisés (bats-core & fixtures CI)
+│
+├── 📖 README.md                       ──► Vitrine principale & documentation d'entrée
+├── 🏷️ VERSION.md                      ──► Numéro de version actif (4.5.0)
+├── 🚀 install.sh                      ──► Déploiement tout-en-un & vérification pré-vol
+└── ⚡ thunar-xfce.sh                  ──► Point d'entrée unifié CLI / TUI / GUI / Daemon
 ```
-
----
 
 <a id="deploiement"></a>
 
